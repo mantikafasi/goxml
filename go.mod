@@ -1,3 +1,3 @@
-module github.com/nbio/xml
+module github.com/mantikafasi/goxml
 
 go 1.21
