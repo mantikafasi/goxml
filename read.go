@@ -444,9 +444,6 @@ func (d *Decoder) unmarshal(val reflect.Value, start *StartElement, depth int) e
 		// Validate and assign element name.
 		if tinfo.xmlname != nil {
 			finfo := tinfo.xmlname
-			if finfo.name != "" && finfo.name != start.Name.Local {
-				return UnmarshalError("expected element type <" + finfo.name + "> but have <" + start.Name.Local + ">")
-			}
 			if finfo.xmlns != "" && finfo.xmlns != start.Name.Space {
 				e := "expected element <" + finfo.name + "> in namespace " + finfo.xmlns + " but have "
 				if start.Name.Space == "" {
