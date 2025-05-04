@@ -3,12 +3,12 @@
 // license that can be found in the LICENSE file.
 
 // Package xml implements a simple XML 1.0 parser that
-// understands XML namespaces.
+// understands XML name spaces.
 package xml
 
 // References:
 //    Annotated XML spec: https://www.xml.com/axml/testaxml.htm
-//    XML namespaces: https://www.w3.org/TR/REC-xml-names/
+//    XML name spaces: https://www.w3.org/TR/REC-xml-names/
 
 import (
 	"bufio"
@@ -33,13 +33,10 @@ func (e *SyntaxError) Error() string {
 }
 
 // A Name represents an XML name (Local) annotated
-// with a namespace identifier (Space).
+// with a name space identifier (Space).
 // In tokens returned by [Decoder.Token], the Space identifier
 // is given as a canonical URL, not the short prefix used
-// in the document being parsed. If Local is prefixed in
-// the form of "prefix:name", this package will attempt to
-// use the prefix instead of a fully-qualified namespace URL
-// when marshaling.
+// in the document being parsed.
 type Name struct {
 	Space, Local string
 }
@@ -167,9 +164,9 @@ type Decoder struct {
 	//
 	// creates a parser that can handle typical HTML.
 	//
-	// Strict mode does not enforce the requirements of the XML namespaces TR.
-	// In particular it does not reject namespace tags using undefined prefixes.
-	// Such tags are recorded with the unknown prefix as the namespace URL.
+	// Strict mode does not enforce the requirements of the XML name spaces TR.
+	// In particular it does not reject name space tags using undefined prefixes.
+	// Such tags are recorded with the unknown prefix as the name space URL.
 	Strict bool
 
 	// When Strict == false, AutoClose indicates a set of elements to
@@ -195,7 +192,7 @@ type Decoder struct {
 	// CharsetReader's result values must be non-nil.
 	CharsetReader func(charset string, input io.Reader) (io.Reader, error)
 
-	// DefaultSpace sets the default namespace used for unadorned tags,
+	// DefaultSpace sets the default name space used for unadorned tags,
 	// as if the entire XML stream were wrapped in an element containing
 	// the attribute xmlns="DefaultSpace".
 	DefaultSpace string
@@ -210,7 +207,7 @@ type Decoder struct {
 	toClose        Name
 	nextToken      Token
 	nextByte       int
-	ns             map[string]string // url for a prefix ns[.Space]=.Value
+	ns             map[string]string
 	err            error
 	line           int
 	linestart      int64
@@ -268,11 +265,11 @@ func NewTokenDecoder(t TokenReader) *Decoder {
 // If [Decoder.CharsetReader] is called and returns an error,
 // the error is wrapped and returned.
 //
-// Token implements XML namespaces as described by
+// Token implements XML name spaces as described by
 // https://www.w3.org/TR/REC-xml-names/. Each of the
 // [Name] structures contained in the Token has the Space
-// set to the URL identifying its namespace when known.
-// If Token encounters an unrecognized namespace prefix,
+// set to the URL identifying its name space when known.
+// If Token encounters an unrecognized name space prefix,
 // it uses the prefix as the Space rather than report an error.
 func (d *Decoder) Token() (Token, error) {
 	var t Token
@@ -302,27 +299,18 @@ func (d *Decoder) Token() (Token, error) {
 	}
 	switch t1 := t.(type) {
 	case StartElement:
-		// In XML namespaces, the translations listed in the
+		// In XML name spaces, the translations listed in the
 		// attributes apply to the element name and
 		// to the other attribute names, so process
 		// the translations first.
 		for _, a := range t1.Attr {
-			if a.Name.Space == xmlnsPrefix { // namespace attribute {.Space}xmlns:{.Local}={.Value}
-				if a.Value == "" {
-					d.err = d.syntaxError("empty namespace without prefix")
-					return nil, d.err
-				}
-				if a.Name.Local == "" {
-					d.err = d.syntaxError("empty prefix")
-					return nil, d.err
-				}
-				v, ok := d.ns[a.Name.Local] // Checking existence
-				// Recording the level of the namespace by recording tag name
-				d.pushNs(a.Name.Local, v, ok) // Pushing tag, eventual value, and existence of namespace
+			if a.Name.Space == xmlnsPrefix {
+				v, ok := d.ns[a.Name.Local]
+				d.pushNs(a.Name.Local, v, ok)
 				d.ns[a.Name.Local] = a.Value
 			}
-			if a.Name.Space == "" && a.Name.Local == xmlnsPrefix { // xmlns=".Value"
-				// Default namespace for non-prefixed names
+			if a.Name.Space == "" && a.Name.Local == xmlnsPrefix {
+				// Default space for untagged names
 				v, ok := d.ns[""]
 				d.pushNs("", v, ok)
 				d.ns[""] = a.Value
@@ -347,18 +335,16 @@ func (d *Decoder) Token() (Token, error) {
 
 const (
 	xmlURL      = "http://www.w3.org/XML/1998/namespace"
-	xmlPrefix   = "xml"
-	xmlnsURL    = "http://www.w3.org/2000/xmlns/"
 	xmlnsPrefix = "xmlns"
+	xmlPrefix   = "xml"
 )
 
-// Apply namespace translation to name n.
-// The default namespace (for Space=="")
+// Apply name space translation to name n.
+// The default name space (for Space=="")
 // applies only to element names, not to attribute names.
 func (d *Decoder) translate(n *Name, isElementName bool) {
 	switch {
 	case n.Space == xmlnsPrefix:
-		n.Space = xmlnsURL
 		return
 	case n.Space == "" && !isElementName:
 		return
@@ -386,7 +372,7 @@ func (d *Decoder) switchToReader(r io.Reader) {
 	}
 }
 
-// Parsing state - stack holds old namespace translations
+// Parsing state - stack holds old name space translations
 // and the current set of open elements. The translations to pop when
 // ending a given tag are *below* it on the stack, which is
 // more work but forced on us by XML.
@@ -506,8 +492,12 @@ func (d *Decoder) popElement(t *EndElement) bool {
 		d.err = d.syntaxError("element <" + s.name.Local + "> closed by </" + name.Local + ">")
 		return false
 	case s.name.Space != name.Space:
-		d.err = d.syntaxError("element <" + s.name.Local + "> in namespace " + s.name.Space +
-			" closed by </" + name.Local + "> in namespace " + name.Space)
+		ns := name.Space
+		if name.Space == "" {
+			ns = `""`
+		}
+		d.err = d.syntaxError("element <" + s.name.Local + "> in space " + s.name.Space +
+			" closed by </" + name.Local + "> in space " + ns)
 		return false
 	}
 
@@ -550,7 +540,7 @@ var errRawToken = errors.New("xml: cannot use RawToken from UnmarshalXML method"
 
 // RawToken is like [Decoder.Token] but does not verify that
 // start and end elements match and does not translate
-// namespace prefixes to their corresponding URLs.
+// name space prefixes to their corresponding URLs.
 func (d *Decoder) RawToken() (Token, error) {
 	if d.unmarshalDepth > 0 {
 		return nil, errRawToken
@@ -807,9 +797,6 @@ func (d *Decoder) rawToken() (Token, error) {
 	for {
 		d.space()
 		if b, ok = d.mustgetc(); !ok {
-			if len(attr) > 0 && !d.Strict {
-				break // When not strict, an attribute might end with EOF
-			}
 			return nil, d.err
 		}
 		if b == '/' {
@@ -844,6 +831,7 @@ func (d *Decoder) rawToken() (Token, error) {
 				d.err = d.syntaxError("attribute name without = in element")
 				return nil, d.err
 			}
+			d.ungetc(b)
 			a.Value = a.Name.Local
 		} else {
 			d.space()
@@ -1016,8 +1004,9 @@ Input:
 		}
 
 		// <![CDATA[ section ends with ]]>.
-		// It is an error for ]]> to appear in ordinary text.
-		if b0 == ']' && b1 == ']' && b == '>' {
+		// It is an error for ]]> to appear in ordinary text,
+		// but it is allowed in quoted strings.
+		if quote < 0 && b0 == ']' && b1 == ']' && b == '>' {
 			if cdata {
 				trunc = 2
 				break Input
@@ -1034,11 +1023,6 @@ Input:
 			}
 			d.ungetc('<')
 			break Input
-		}
-		// This occurs only for an unquoted attr name.
-		if b == '>' && !cdata && quote < 0 { // Possible end of tag reached
-			d.ungetc('>') // Leaving end of tag available
-			break         // returning text
 		}
 		if quote >= 0 && b == byte(quote) {
 			break Input
@@ -1136,7 +1120,6 @@ Input:
 		}
 
 		// We must rewrite unescaped \r and \r\n into \n.
-		// End of line handling https://www.w3.org/TR/xml/#sec-line-ends
 		if b == '\r' {
 			d.buf.WriteByte('\n')
 		} else if b1 == '\r' && b == '\n' {
@@ -1180,25 +1163,20 @@ func isInCharacterRange(r rune) (inrange bool) {
 		r >= 0x10000 && r <= 0x10FFFF
 }
 
-// Get namespace name: name with a : stuck in the middle.
-// The part before the : is the namespace identifier.
+// Get name space name: name with a : stuck in the middle.
+// The part before the : is the name space identifier.
 func (d *Decoder) nsname() (name Name, ok bool) {
 	s, ok := d.name()
 	if !ok {
 		return
 	}
-	n := strings.Count(s, ":")
-	if n == 0 { // No colons, no namespace. OK.
-		name.Local = s
-	} else if n > 1 { // More than one colon, not OK.
-		name.Local = s
+	if strings.Count(s, ":") > 1 {
 		return name, false
-	} else if i := strings.Index(s, ":"); i < 1 || i > len(s)-2 { // Leading or trailing colon, not OK.
+	} else if space, local, ok := strings.Cut(s, ":"); !ok || space == "" || local == "" {
 		name.Local = s
-		return name, false
 	} else {
-		name.Space = s[0:i]
-		name.Local = s[i+1:]
+		name.Space = space
+		name.Local = local
 	}
 	return name, true
 }
@@ -2072,16 +2050,27 @@ func procInst(param, s string) string {
 	// TODO: this parsing is somewhat lame and not exact.
 	// It works for all actual cases, though.
 	param = param + "="
-	_, v, _ := strings.Cut(s, param)
-	if v == "" {
+	lenp := len(param)
+	i := 0
+	var sep byte
+	for i < len(s) {
+		sub := s[i:]
+		k := strings.Index(sub, param)
+		if k < 0 || lenp+k >= len(sub) {
+			return ""
+		}
+		i += lenp + k + 1
+		if c := sub[lenp+k]; c == '\'' || c == '"' {
+			sep = c
+			break
+		}
+	}
+	if sep == 0 {
 		return ""
 	}
-	if v[0] != '\'' && v[0] != '"' {
+	j := strings.IndexByte(s[i:], sep)
+	if j < 0 {
 		return ""
 	}
-	unquote, _, ok := strings.Cut(v[1:], v[:1])
-	if !ok {
-		return ""
-	}
-	return unquote
+	return s[i : i+j]
 }

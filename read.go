@@ -45,12 +45,8 @@ import (
 //
 //   - If the XMLName field has an associated tag of the form
 //     "name" or "namespace-URL name", the XML element must have
-//     the given name (and, optionally, namespace) or else Unmarshal
+//     the given name (and, optionally, name space) or else Unmarshal
 //     returns an error.
-//
-//   - If the XMLName field contains an XML namespace, it may also
-//     optionally specify a namespace prefix in the form of
-//     "namespace-URL prefix:name".
 //
 //   - If the XML element has an attribute whose name matches a
 //     struct field name with an associated tag containing ",attr" or
@@ -284,7 +280,7 @@ func (d *Decoder) unmarshalAttr(val reflect.Value, attr Attr) error {
 		}
 	}
 
-	if val.Type().Kind() == reflect.Slice && val.Type().Elem().Kind() != reflect.Uint8 {
+	if val.Kind() == reflect.Slice && val.Type().Elem().Kind() != reflect.Uint8 {
 		// Slice of element values.
 		// Grow slice.
 		n := val.Len()
@@ -308,10 +304,10 @@ func (d *Decoder) unmarshalAttr(val reflect.Value, attr Attr) error {
 }
 
 var (
-	attrType            = reflect.TypeOf(Attr{})
-	unmarshalerType     = reflect.TypeOf((*Unmarshaler)(nil)).Elem()
-	unmarshalerAttrType = reflect.TypeOf((*UnmarshalerAttr)(nil)).Elem()
-	textUnmarshalerType = reflect.TypeOf((*encoding.TextUnmarshaler)(nil)).Elem()
+	attrType            = reflect.TypeFor[Attr]()
+	unmarshalerType     = reflect.TypeFor[Unmarshaler]()
+	unmarshalerAttrType = reflect.TypeFor[UnmarshalerAttr]()
+	textUnmarshalerType = reflect.TypeFor[encoding.TextUnmarshaler]()
 )
 
 const (
@@ -444,32 +440,21 @@ func (d *Decoder) unmarshal(val reflect.Value, start *StartElement, depth int) e
 		// Validate and assign element name.
 		if tinfo.xmlname != nil {
 			finfo := tinfo.xmlname
+			if finfo.name != "" && finfo.name != start.Name.Local {
+				return UnmarshalError("expected element type <" + finfo.name + "> but have <" + start.Name.Local + ">")
+			}
 			if finfo.xmlns != "" && finfo.xmlns != start.Name.Space {
-				e := "expected element <" + finfo.name + "> in namespace " + finfo.xmlns + " but have "
+				e := "expected element <" + finfo.name + "> in name space " + finfo.xmlns + " but have "
 				if start.Name.Space == "" {
-					e += "no namespace"
+					e += "no name space"
 				} else {
 					e += start.Name.Space
 				}
 				return UnmarshalError(e)
 			}
-			// Anonymous struct with no field or anonymous fields cannot get a value using the reflection
-			// package and must be discarded.
-			noValue := true
-			if sv.Type().Name() == "" && sv.Type().Kind() == reflect.Struct {
-				i := 0
-				for i < sv.Type().NumField() && noValue {
-					noValue = noValue && sv.Type().Field(i).Anonymous
-					i++
-				}
-			} else {
-				noValue = false
-			}
-			if !noValue {
-				fv := finfo.value(sv, initNilPointers)
-				if _, ok := fv.Interface().(Name); ok {
-					fv.Set(reflect.ValueOf(start.Name))
-				}
+			fv := finfo.value(sv, initNilPointers)
+			if _, ok := fv.Interface().(Name); ok {
+				fv.Set(reflect.ValueOf(start.Name))
 			}
 		}
 
