@@ -440,18 +440,6 @@ func (d *Decoder) unmarshal(val reflect.Value, start *StartElement, depth int) e
 		// Validate and assign element name.
 		if tinfo.xmlname != nil {
 			finfo := tinfo.xmlname
-			if finfo.name != "" && finfo.name != start.Name.Local {
-				return UnmarshalError("expected element type <" + finfo.name + "> but have <" + start.Name.Local + ">")
-			}
-			if finfo.xmlns != "" && finfo.xmlns != start.Name.Space {
-				e := "expected element <" + finfo.name + "> in name space " + finfo.xmlns + " but have "
-				if start.Name.Space == "" {
-					e += "no name space"
-				} else {
-					e += start.Name.Space
-				}
-				return UnmarshalError(e)
-			}
 			fv := finfo.value(sv, initNilPointers)
 			if _, ok := fv.Interface().(Name); ok {
 				fv.Set(reflect.ValueOf(start.Name))
